@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AfriCareEdu AI — Preventive Health & Learning Assistant</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-10">
+    <div class="max-w-4xl mx-auto px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+          AC
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-slate-900 leading-tight">AfriCareEdu AI</h1>
+          <p class="text-xs text-slate-500">Preventive Health Awareness & Accessible Education</p>
+        </div>
+      </div>
+
+      <!-- Backend Status & URL Config -->
+      <div class="flex items-center gap-2 text-xs">
+        <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+        <span id="status-text" class="text-slate-600 font-medium">Checking API...</span>
+        <button onclick="toggleSettings()" class="ml-2 px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition">
+          API URL
+        </button>
+      </div>
+    </div>
+
+    <!-- Collapsible API URL Settings -->
+    <div id="api-settings" class="hidden bg-slate-100 border-t border-slate-200 px-4 py-3">
+      <div class="max-w-4xl mx-auto flex flex-col sm:flex-row gap-2 items-center">
+        <label for="api-base-url" class="text-xs font-semibold text-slate-700 whitespace-nowrap">Backend Base URL:</label>
+        <input
+          id="api-base-url"
+          type="text"
+          class="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          placeholder="https://your-codespace-8000.app.github.dev"
+        />
+        <button onclick="saveApiUrl()" class="px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition whitespace-nowrap">
+          Save & Test
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mode Selector Tabs -->
+  <div class="max-w-4xl w-full mx-auto px-4 pt-6">
+    <div class="bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm grid grid-cols-2 gap-1.5">
+      <button
+        id="btn-health"
+        onclick="setMode('health')"
+        class="py-2.5 px-4 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2 bg-emerald-600 text-white shadow-sm"
+      >
+        <span>🩺</span> Health Awareness Mode
+      </button>
+      <button
+        id="btn-education"
+        onclick="setMode('education')"
+        class="py-2.5 px-4 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2 text-slate-600 hover:bg-slate-100"
+      >
+        <span>📚</span> Learning Assistant Mode
+      </button>
+    </div>
+  </div>
+
+  <!-- Chat Conversation Area -->
+  <main id="chat-container" class="flex-1 max-w-4xl w-full mx-auto px-4 py-6 space-y-4 overflow-y-auto">
+    <!-- Welcome Message -->
+    <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+      <p class="text-sm text-slate-700 leading-relaxed">
+        Welcome to <strong class="text-slate-900">AfriCareEdu AI</strong>! Choose a mode above and ask a question below:
+      </p>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <button onclick="fillPrompt('How can families prevent malaria during the rainy season?', 'health')" class="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-full hover:bg-emerald-100 transition">
+          "How can families prevent malaria during the rainy season?"
+        </button>
+        <button onclick="fillPrompt('Explain photosynthesis in simple terms for secondary school students.', 'education')" class="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-full hover:bg-blue-100 transition">
+          "Explain photosynthesis in simple terms"
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Input Footer -->
+  <footer class="bg-white border-t border-slate-200 p-4 sticky bottom-0">
+    <form id="chat-form" onsubmit="sendMessage(event)" class="max-w-4xl mx-auto flex gap-2">
+      <input
+        id="query-input"
+        type="text"
+        required
+        placeholder="Ask a preventive health question..."
+        class="flex-1 px-4 py-3 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition"
+      />
+      <button
+        id="send-btn"
+        type="submit"
+        class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-sm transition disabled:opacity-50"
+      >
+        Send
+      </button>
+    </form>
+  </footer>
+
+  <script>
+    let currentMode = "health";
+
+    // Automatically infer port 8000 URL if running inside GitHub Codespaces, otherwise fallback to localhost:8000
+    function getDefaultApiUrl() {
+      const saved = localStorage.getItem("africareedu_api_url");
+      if (saved) return saved;
+      const origin = window.location.origin;
+      if (origin.includes(".app.github.dev")) {
+        return origin.replace(/-\d+\.app\.github\.dev/, "-8000.app.github.dev");
+      }
+      return "http://127.0.0.1:8000";
+    }
+
+    let apiBaseUrl = getDefaultApiUrl();
+    document.getElementById("api-base-url").value = apiBaseUrl;
+
+    function toggleSettings() {
+      document.getElementById("api-settings").classList.toggle("hidden");
+    }
+
+    function saveApiUrl() {
+      const input = document.getElementById("api-base-url").value.trim().replace(/\/$/, "");
+      if (input) {
+        apiBaseUrl = input;
+        localStorage.setItem("africareedu_api_url", apiBaseUrl);
+        checkHealth();
+      }
+    }
+
+    async function checkHealth() {
+      const dot = document.getElementById("status-dot");
+      const text = document.getElementById("status-text");
+      try {
+        const res = await fetch(`${apiBaseUrl}/health`);
+        if (res.ok) {
+          dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-500";
+          text.textContent = "API Online";
+        } else {
+          throw new Error("Non-200 response");
+        }
+      } catch (err) {
+        dot.className = "w-2.5 h-2.5 rounded-full bg-rose-500";
+        text.textContent = "API Offline (Check Port 8000)";
+      }
+    }
+
+    function setMode(mode) {
+      currentMode = mode;
+      const btnHealth = document.getElementById("btn-health");
+      const btnEdu = document.getElementById("btn-education");
+      const input = document.getElementById("query-input");
+      const sendBtn = document.getElementById("send-btn");
+
+      if (mode === "health") {
+        btnHealth.className = "py-2.5 px-4 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2 bg-emerald-600 text-white shadow-sm";
+        btnEdu.className = "py-2.5 px-4 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2 text-slate-600 hover:bg-slate-100";
+        input.placeholder = "Ask a preventive health question...";
+        sendBtn.className = "px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-sm transition disabled:opacity-50";
+      } else {
+        btnEdu.className = "py-2.5 px-4 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2 bg-blue-600 text-white shadow-sm";
+        btnHealth.className = "py-2.5 px-4 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2 text-slate-600 hover:bg-slate-100";
+        input.placeholder = "Ask a science, math, or literacy question...";
+        sendBtn.className = "px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm transition disabled:opacity-50";
+      }
+    }
+
+    function fillPrompt(text, mode) {
+      setMode(mode);
+      document.getElementById("query-input").value = text;
+      document.getElementById("query-input").focus();
+    }
+
+    function appendUserBubble(query, mode) {
+      const container = document.getElementById("chat-container");
+      const badgeColor = mode === "health" ? "bg-emerald-100 text-emerald-800" : "bg-blue-100 text-blue-800";
+      const label = mode === "health" ? "Health Mode" : "Learning Mode";
+
+      const div = document.createElement("div");
+      div.className = "flex justify-end";
+      div.innerHTML = `
+        <div class="max-w-xl bg-slate-900 text-white rounded-2xl rounded-tr-sm px-5 py-3.5 shadow-sm">
+          <div class="mb-1.5">
+            <span class="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded ${badgeColor}">${label}</span>
+          </div>
+          <p class="text-sm leading-relaxed">${escapeHtml(query)}</p>
+        </div>
+      `;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function appendAiBubble(data) {
+      const container = document.getElementById("chat-container");
+      const isHealth = data.mode === "health";
+      const accentBorder = isHealth ? "border-emerald-200" : "border-blue-200";
+
+      let sourcesHtml = "";
+      if (data.sources && data.sources.length > 0) {
+        const items = data.sources.map(src => {
+          const link = src.source_url
+            ? `<a href="${src.source_url}" target="_blank" class="underline hover:text-slate-900">${escapeHtml(src.title)}</a>`
+            : escapeHtml(src.title);
+          return `<li class="text-xs text-slate-600">• ${link}</li>`;
+        }).join("");
+        sourcesHtml = `
+          <div class="mt-3 pt-3 border-t border-slate-100">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Verified Sources</p>
+            <ul class="space-y-1">${items}</ul>
+          </div>
+        `;
+      }
+
+      let disclaimerHtml = "";
+      if (data.safety_disclaimer) {
+        disclaimerHtml = `
+          <div class="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 leading-relaxed">
+            ${escapeHtml(data.safety_disclaimer)}
+          </div>
+        `;
+      }
+
+      const div = document.createElement("div");
+      div.className = "flex justify-start";
+      div.innerHTML = `
+        <div class="max-w-2xl bg-white border ${accentBorder} rounded-2xl rounded-tl-sm p-5 shadow-sm">
+          <p class="text-sm text-slate-800 leading-relaxed whitespace-pre-line">${escapeHtml(data.answer)}</p>
+          ${sourcesHtml}
+          ${disclaimerHtml}
+        </div>
+      `;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function appendErrorBubble(msg) {
+      const container = document.getElementById("chat-container");
+      const div = document.createElement("div");
+      div.className = "p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800";
+      div.textContent = msg;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    async function sendMessage(event) {
+      event.preventDefault();
+      const input = document.getElementById("query-input");
+      const sendBtn = document.getElementById("send-btn");
+      const query = input.value.trim();
+      if (!query) return;
+
+      appendUserBubble(query, currentMode);
+      input.value = "";
+      sendBtn.disabled = true;
+      sendBtn.textContent = "Thinking...";
+
+      try {
+        const response = await fetch(`${apiBaseUrl}/api/v1/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: query, mode: currentMode })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Server returned HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        appendAiBubble(data);
+      } catch (error) {
+        appendErrorBubble(
+          `Could not reach ${apiBaseUrl}/api/v1/chat. Ensure Uvicorn is running on port 8000 and Port 8000 visibility is set to Public in the Codespaces Ports tab.`
+        );
+      } finally {
+        sendBtn.disabled = false;
+        sendBtn.textContent = "Send";
+      }
+    }
+
+    // Check API health on page load
+    checkHealth();
+  </script>
+</body>
+</html>
